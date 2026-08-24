@@ -2,6 +2,7 @@ import Navbar from "../../components/Navbar/Navbar";
 import Hero from "../../components/Hero/Hero";
 import TrendingAnime from "../../components/TrendingAnime/TrendingAnime";
 import ContinueWatching from "../../components/ContinueWatching/ContinueWatching";
+import LatestReleases from "../../components/LatestReleases/LatestReleases";
 
 function Home() {
   return (
@@ -14,6 +15,8 @@ function Home() {
       <TrendingAnime />
 
       <ContinueWatching />
+
+      <LatestReleases />
 
     </main>
   );
