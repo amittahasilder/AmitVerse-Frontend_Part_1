@@ -1,15 +1,3 @@
-// function App() {
-//   return (
-//     <div className="min-h-screen bg-[#030305] text-white flex items-center justify-center">
-//       <h1 className="text-5xl font-black text-purple-500">
-//         AMITVERSE
-//       </h1>
-//     </div>
-//   );
-// }
-
-// export default App;
-
 
 
 
@@ -34,7 +22,7 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* HOME */}
+        {/* HOMEeee */}
         <Route
           path="/"
           element={<Home />}
