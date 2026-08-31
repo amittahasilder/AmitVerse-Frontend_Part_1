@@ -1205,6 +1205,7 @@
 
 
 
+
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -1216,10 +1217,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-// IMPORTANT:
-// Anime.jsx = src/pages/Anime/Anime.jsx
-// Service   = src/services/animeService.js
-// তাই ../../services হবে
 import {
   getRealAnime,
   searchRealAnime,
@@ -1333,35 +1330,54 @@ function Anime() {
         setLoadingMore(true);
       }
 
-      const response = await getRealAnime(currentPage, 12);
+      const response = await getRealAnime(
+        currentPage,
+        12
+      );
+
+      console.log("REAL ANIME RESPONSE:", response);
 
       if (!response?.success) {
         throw new Error(
-          response?.message || "Failed to load anime"
+          response?.message ||
+            "Failed to load anime"
         );
       }
 
-      const newAnime = response?.data?.media || [];
+      const newAnime =
+        response?.data?.media || [];
 
-      setAnimeList((previous) =>
-        currentPage === 1
-          ? newAnime
-          : [...previous, ...newAnime]
-      );
+      const pageInfo =
+        response?.data?.pageInfo || {};
+
+      setAnimeList((previous) => {
+        if (currentPage === 1) {
+          return newAnime;
+        }
+
+        return [...previous, ...newAnime];
+      });
 
       setHasNextPage(
-        response?.data?.pageInfo?.hasNextPage || false
+        Boolean(pageInfo?.hasNextPage)
       );
 
       setPage(currentPage);
     } catch (err) {
-      console.error("Anime Load Error:", err);
+      console.error(
+        "Anime Load Error:",
+        err
+      );
 
       setError(
         err?.response?.data?.message ||
           err?.message ||
           "Failed to load anime"
       );
+
+      if (currentPage === 1) {
+        setAnimeList([]);
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -1381,11 +1397,15 @@ function Anime() {
   // ====================================
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      const searchQuery = search.trim();
+    const searchQuery = search.trim();
 
-      // Empty search হলে normal anime list থাকবে
+    const timer = setTimeout(async () => {
+      // Empty search হলে normal list reload হবে
       if (!searchQuery) {
+        if (animeList.length === 0) {
+          await loadAnime(1);
+        }
+
         return;
       }
 
@@ -1393,29 +1413,43 @@ function Anime() {
         setLoading(true);
         setError("");
 
-        const response = await searchRealAnime(
-          searchQuery,
-          1,
-          12
+        const response =
+          await searchRealAnime(
+            searchQuery,
+            1,
+            12
+          );
+
+        console.log(
+          "REAL ANIME SEARCH RESPONSE:",
+          response
         );
 
         if (!response?.success) {
           throw new Error(
-            response?.message || "Anime search failed"
+            response?.message ||
+              "Anime search failed"
           );
         }
 
-        setAnimeList(
-          response?.data?.media || []
-        );
+        const results =
+          response?.data?.media || [];
+
+        const pageInfo =
+          response?.data?.pageInfo || {};
+
+        setAnimeList(results);
 
         setHasNextPage(
-          response?.data?.pageInfo?.hasNextPage || false
+          Boolean(pageInfo?.hasNextPage)
         );
 
         setPage(1);
       } catch (err) {
-        console.error("Anime Search Error:", err);
+        console.error(
+          "Anime Search Error:",
+          err
+        );
 
         setError(
           err?.response?.data?.message ||
@@ -1424,12 +1458,15 @@ function Anime() {
         );
 
         setAnimeList([]);
+        setHasNextPage(false);
       } finally {
         setLoading(false);
       }
     }, 500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [search]);
 
   // ====================================
@@ -1443,15 +1480,30 @@ function Anime() {
     // CATEGORY
     // ==================================
 
+    if (category === "Popular") {
+      result = result.filter(
+        (anime) =>
+          (anime?.popularity || 0) > 0
+      );
+
+      result.sort(
+        (a, b) =>
+          (b?.popularity || 0) -
+          (a?.popularity || 0)
+      );
+    }
+
     if (category === "Ongoing") {
       result = result.filter(
-        (anime) => anime?.status === "RELEASING"
+        (anime) =>
+          anime?.status === "RELEASING"
       );
     }
 
     if (category === "Completed") {
       result = result.filter(
-        (anime) => anime?.status === "FINISHED"
+        (anime) =>
+          anime?.status === "FINISHED"
       );
     }
 
@@ -1459,6 +1511,12 @@ function Anime() {
       result = result.filter(
         (anime) =>
           (anime?.seasonYear || 0) >= 2025
+      );
+
+      result.sort(
+        (a, b) =>
+          (b?.seasonYear || 0) -
+          (a?.seasonYear || 0)
       );
     }
 
@@ -1500,9 +1558,13 @@ function Anime() {
       );
     }
 
-    // Popular:
-    // Backend থেকে Popular order এ data আসবে,
-    // তাই এখানে আলাদা sort দরকার নেই।
+    if (sort === "Popular") {
+      result.sort(
+        (a, b) =>
+          (b?.popularity || 0) -
+          (a?.popularity || 0)
+      );
+    }
 
     return result;
   }, [
@@ -1519,8 +1581,12 @@ function Anime() {
   const resetFilters = () => {
     setCategory("All");
     setGenre("All Genres");
-    setSearch("");
     setSort("Popular");
+
+    if (search.trim()) {
+      setSearch("");
+      return;
+    }
 
     loadAnime(1);
   };
@@ -1530,7 +1596,11 @@ function Anime() {
   // ====================================
 
   const handleLoadMore = () => {
-    if (!hasNextPage || loadingMore) {
+    if (
+      loading ||
+      loadingMore ||
+      !hasNextPage
+    ) {
       return;
     }
 
@@ -1546,11 +1616,28 @@ function Anime() {
       (anime) => anime?.genres || []
     );
 
+    const uniqueGenres = Array.from(
+      new Set(allGenres)
+    ).sort();
+
     return [
       "All Genres",
-      ...Array.from(new Set(allGenres)),
+      ...uniqueGenres,
     ];
   }, [animeList]);
+
+  // ====================================
+  // CLEAR SEARCH
+  // ====================================
+
+  const clearSearch = () => {
+    setSearch("");
+    setCategory("All");
+    setGenre("All Genres");
+    setSort("Popular");
+
+    loadAnime(1);
+  };
 
   // ====================================
   // RENDER
@@ -1898,10 +1985,7 @@ function Anime() {
                   scale: 0.9,
                 }}
                 type="button"
-                onClick={() => {
-                  setSearch("");
-                  loadAnime(1);
-                }}
+                onClick={clearSearch}
                 className="
                   text-white/30
                   transition
@@ -2281,7 +2365,10 @@ function Anime() {
                   return (
                     <motion.article
                       layout
-                      key={`${anime?.id || "anime"}-${index}`}
+                      key={
+                        anime?.id ||
+                        `anime-${index}`
+                      }
                       initial={{
                         opacity: 0,
                         y: 35,
@@ -2336,6 +2423,10 @@ function Anime() {
                             duration-700
                             group-hover:scale-110
                           "
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "https://placehold.co/600x900/08080b/ffffff?text=No+Image";
+                          }}
                         />
 
                         {/* OVERLAY */}
@@ -2411,12 +2502,14 @@ function Anime() {
                             backdrop-blur-md
                           "
                         >
+
                           <Star
                             size={10}
                             fill="currentColor"
                           />
 
                           {rating}
+
                         </div>
 
                         {/* PLAY */}
